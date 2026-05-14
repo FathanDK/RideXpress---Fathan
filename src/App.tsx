@@ -7,23 +7,38 @@ import VehicleDetail from './pages/VehicleDetail';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import { useStore } from './store/useStore';
-import { useEffect } from 'react';
-import { supabase } from './lib/supabase';
+import { useEffect, useState } from 'react';
+import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { UserRole } from './types';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 
 export default function App() {
   const { user, setUser, setLoading } = useStore();
+  const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setInitError('Environment variables VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY are missing. Please add them to your deployment settings (Settings > Environment Variables) to use the app.');
+      return;
+    }
+
     // Force reset loading from any stale persisted state
     setLoading(false);
 
-    // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        syncUser(session.user);
+    const checkSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        if (session?.user) {
+          await syncUser(session.user);
+        }
+      } catch (err: any) {
+        console.error('[App] Initial session check failed:', err);
+        // Don't show blocking error for session check, just let them login manually
       }
-    });
+    };
+
+    checkSession();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -58,8 +73,8 @@ export default function App() {
         id: supabaseUser.id,
         email: supabaseUser.email,
         role: role,
-        created_at: supabaseUser.created_at || new Date().toISOString()
-      });
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' });
 
       if (syncErr) {
         console.warn('[App] Upsert sync failed / blocked by RLS:', syncErr.message);
@@ -85,6 +100,27 @@ export default function App() {
       });
     }
   };
+
+  if (initError) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-6 text-center">
+        <div className="max-w-md p-8 rounded-3xl bg-white/5 border border-white/10 backdrop-blur-xl">
+          <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-white mb-4">Konfigurasi Diperlukan</h2>
+          <p className="text-gray-400 mb-8 leading-relaxed">
+            {initError}
+          </p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl bg-cyan-500 text-black font-bold hover:bg-cyan-400 transition-all shadow-[0_0_20px_rgba(6,182,212,0.3)]"
+          >
+            <RefreshCw size={20} />
+            Coba Lagi
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Router>

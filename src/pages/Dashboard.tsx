@@ -17,7 +17,8 @@ import {
   ArrowUpRight,
   Trash2,
   X,
-  CheckCircle2
+  CheckCircle2,
+  Printer
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatCurrency } from '../lib/utils';
@@ -172,6 +173,56 @@ export default function Dashboard() {
   };
   const chartData = getChartData();
 
+  const handlePrint = () => {
+    // Collect the print area content
+    const printContent = document.querySelector('.print-area')?.innerHTML;
+    if (!printContent) return;
+
+    try {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        let styleTags = '';
+        document.querySelectorAll('style, link[rel="stylesheet"]').forEach(el => {
+          styleTags += el.outerHTML;
+        });
+
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>Cetak Struk - ${selectedBooking?.id}</title>
+              ${styleTags}
+              <style>
+                body { background: white !important; color: black !important; padding: 20px; }
+                .no-print, button, svg.lucide-x, svg.lucide-printer { display: none !important; }
+                * { color: black !important; border-color: #ddd !important; }
+                .glass-panel { background: white !important; box-shadow: none !important; border: 1px solid #ddd !important; }
+                img { max-width: 100%; border-radius: 8px; }
+              </style>
+            </head>
+            <body>
+              <div style="max-width: 800px; margin: 0 auto; color: black;">
+                <div style="text-align: center; margin-bottom: 20px; font-weight: bold; font-size: 24px;">RIdeXpress</div>
+                ${printContent}
+              </div>
+              <script>
+                setTimeout(() => {
+                   window.print();
+                   window.close();
+                }, 800);
+              </script>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+      } else {
+        alert("Pop-up diblokir. Harap izinkan pop-up untuk mencetak struk.");
+      }
+    } catch (e) {
+      console.error("Print failed:", e);
+      alert("Gagal mencetak struk: " + (e as Error).message);
+    }
+  };
+
 
   return (
     <div className="pt-32 pb-20 px-6 max-w-7xl mx-auto space-y-12">
@@ -244,13 +295,13 @@ export default function Dashboard() {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-6xl glass-panel p-8 rounded-3xl my-auto shadow-2xl border-white/10"
+              className="relative w-full max-w-6xl glass-panel p-8 rounded-3xl my-auto shadow-2xl border-white/10 print-area"
             >
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 to-purple-500" />
               
-              <div className="flex justify-between items-center mb-8">
+              <div className="flex justify-between items-center mb-8 pb-4 border-b border-white/10">
                 <div className="flex items-center gap-4">
-                  <div className="bg-cyan-500/20 p-3 rounded-2xl">
+                  <div className="bg-cyan-500/20 p-3 rounded-2xl print:hidden">
                     <Package className="text-cyan-400" size={32} />
                   </div>
                   <div>
@@ -261,12 +312,31 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
-                <button 
-                  onClick={() => setSelectedBooking(null)}
-                  className="p-3 hover:bg-white/10 rounded-2xl transition-colors group"
-                >
-                  <X size={32} className="group-hover:rotate-90 transition-transform" />
-                </button>
+                <div className="flex items-center gap-2 no-print">
+                  {(isAdmin || isStaff) && (
+                    <button 
+                      onClick={(e) => {
+                         e.preventDefault();
+                         e.stopPropagation();
+                         handlePrint();
+                      }}
+                      className="flex items-center gap-2 px-4 py-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-colors text-cyan-400 font-bold text-sm relative z-50 cursor-pointer"
+                    >
+                      <Printer size={20} />
+                      Cetak Struk
+                    </button>
+                  )}
+                  <button 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setSelectedBooking(null);
+                    }}
+                    className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-colors group relative z-50 cursor-pointer"
+                  >
+                    <X size={24} className="group-hover:rotate-90 transition-transform" />
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -299,7 +369,7 @@ export default function Dashboard() {
                   </div>
 
                   {['approved', 'ongoing'].includes(selectedBooking.status) && (
-                    <div className="p-6 rounded-3xl border border-purple-500/20 bg-purple-500/5 flex flex-col items-center justify-center gap-2">
+                    <div className="p-6 rounded-3xl border border-purple-500/20 bg-purple-500/5 flex flex-col items-center justify-center gap-2 no-print">
                       <div className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Sisa Waktu Rental</div>
                       <CountdownTimer targetDate={selectedBooking.end_date} />
                     </div>
@@ -394,7 +464,7 @@ export default function Dashboard() {
                                   <span className="text-[10px] font-bold uppercase">{doc.label}</span>
                                </div>
                                {doc.val ? (
-                                 <button onClick={() => setViewImage(doc.val)} className="text-[10px] font-black text-gray-400 group-hover:text-cyan-400 transition-colors cursor-pointer ml-auto">
+                                 <button onClick={() => setViewImage(doc.val)} className="text-[10px] font-black text-gray-400 group-hover:text-cyan-400 transition-colors cursor-pointer ml-auto no-print">
                                    LIHAT
                                  </button>
                                ) : (
@@ -407,7 +477,7 @@ export default function Dashboard() {
                   </div>
 
                   {(isAdmin || isStaff) && selectedBooking.status === 'pending' && (
-                    <div className="flex gap-3 pt-4">
+                    <div className="flex gap-3 pt-4 no-print">
                       <Button 
                         className="flex-1 bg-green-600 hover:bg-green-500 text-white rounded-2xl py-4 font-black text-xs shadow-lg shadow-green-900/40"
                         onClick={() => handleStatusUpdate(selectedBooking.id, 'approved')}

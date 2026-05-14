@@ -125,14 +125,18 @@ export const useStore = create<AppState>()(
            console.log(`[addBooking] Attempt ${attempt}: Ensuring user exists & inserting booking...`);
 
            // Pre-emptively sync user record
-           await supabase.from('users').upsert({
+           const { error: userSyncErr } = await supabase.from('users').upsert({
              id: cleanBooking.user_id,
              email: get().user?.email || '',
              role: get().user?.role || 'customer'
-           });
+           }, { onConflict: 'id' });
+
+           if (userSyncErr) {
+             console.warn('[addBooking] User sync warning:', userSyncErr.message);
+           }
 
            // Small delay to allow DB propagation for very new users
-           if (attempt === 1) await new Promise(r => setTimeout(r, 800));
+           if (attempt === 1) await new Promise(r => setTimeout(r, 1200));
 
            const { data, error } = await supabase.from('bookings').insert(cleanBooking).select();
 
